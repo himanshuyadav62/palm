@@ -10,7 +10,8 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.env.Environment;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -32,6 +33,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class AIController {
 
     private static final Logger logger = LoggerFactory.getLogger(AIController.class);
+
+    @Value("${PALM_API_KEY}")
+    private String apiKey;
 
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
@@ -55,7 +59,6 @@ public class AIController {
             String pdfText = new String(prompt) + resumeData;
 
             // Prepare request data
-            String apiKey = "AIzaSyBB1v6pTddtptMJ9Beah365fP9sAqgcjtE";
             String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key="
                     + apiKey;
 
