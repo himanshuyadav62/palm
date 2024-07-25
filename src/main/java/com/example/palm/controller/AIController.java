@@ -1,4 +1,4 @@
-package com.example.palm;
+package com.example.palm.controller;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
