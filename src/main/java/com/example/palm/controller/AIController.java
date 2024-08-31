@@ -3,6 +3,7 @@ package com.example.palm.controller;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.pdfbox.Loader;
@@ -11,7 +12,6 @@ import org.apache.pdfbox.text.PDFTextStripper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.env.Environment;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -26,7 +26,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-
 
 @RestController
 @RequestMapping("/api")
@@ -58,58 +57,19 @@ public class AIController {
             // Use the resume data as the prompt text
             String pdfText = new String(prompt) + resumeData;
 
-            // Prepare request data
-            String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key="
-                    + apiKey;
+            ResponseEntity<String> response = callAiApi(pdfText);
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Content-Type", "application/json");
-
-            Map<String, Object> data = new HashMap<>();
-            Map<String, Object> content = new HashMap<>();
-            Map<String, Object> part = new HashMap<>();
-
-            part.put("text", pdfText);
-            content.put("parts", new Map[] { part });
-            data.put("contents", new Map[] { content });
-
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(data, headers);
-
-            ResponseEntity<String> response = restTemplate.exchange(url, HttpMethod.POST, request, String.class);
-
-            JsonNode root = objectMapper.readTree(response.getBody());
-
-            // Extract the text content
-            String responseData = null;
-            JsonNode candidates = root.path("candidates");
-            if (candidates.isArray() && candidates.size() > 0) {
-                JsonNode candidate = candidates.get(0);
-                JsonNode parts = candidate.path("content").path("parts");
-                if (parts.isArray() && parts.size() > 0) {
-                    responseData = parts.get(0).path("text").asText();
-                }
+            if(response.getStatusCode() != HttpStatus.OK) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error generating resume AI result");
             }
 
-            if (responseData == null) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body("Error extracting text from response");
-            }
+            // Extract the text content from the response
+            String responseData = response.getBody();
 
             responseData = responseData.substring(responseData.indexOf("{"), responseData.lastIndexOf("}") + 1);
 
             // Parse the extracted text content as JSON
             JsonNode jsonResponse = objectMapper.readTree(responseData);
-
-            // Print token counts to console
-            final String USAGE_METADATA = "usageMetadata";
-            int promptTokenCount = root.path(USAGE_METADATA).path("promptTokenCount").asInt();
-            int candidatesTokenCount = root.path(USAGE_METADATA).path("candidatesTokenCount").asInt();
-            int totalTokenCount = root.path(USAGE_METADATA).path("totalTokenCount").asInt();
-
-            logger.info("Prompt Token Count: {}", promptTokenCount);
-            logger.info("Candidates Token Count: {}", candidatesTokenCount);
-            logger.info("Total Token Count: {}", totalTokenCount);
-
             return ResponseEntity.ok(jsonResponse);
         } catch (Exception e) {
             logger.info("Error generating resume AI result: {}", e.getMessage());
@@ -125,6 +85,46 @@ public class AIController {
             logger.error("Error extracting text from PDF {}", e.getMessage());
             return null;
         }
+    }
+
+    @GetMapping("/ai/generate")
+    public ResponseEntity<String> callAiApi(String prompt) {
+        String url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key="
+                + apiKey;
+
+        // Set headers
+        HttpHeaders headers = new HttpHeaders();
+        headers.set("Content-Type", "application/json");
+
+        // Create request body
+        Map<String, Object> part = new HashMap<>();
+        part.put("text", prompt);
+        Map<String, Object> content = new HashMap<>();
+        content.put("parts", new Map[] { part });
+        Map<String, Object> data = new HashMap<>();
+        data.put("contents", new Map[] { content });
+
+        // Send the request
+        HttpEntity<Map<String, Object>> request = new HttpEntity<>(data, headers);
+        ResponseEntity<Map> response = restTemplate.exchange(url, HttpMethod.POST, request, Map.class);
+
+        // Extract the text content directly from the Map response
+        Map<String, Object> responseBody = response.getBody();
+        String responseData = ((List<Map<String, Object>>) ((Map<String, Object>) ((List<Map<String, Object>>) responseBody
+                .get("candidates"))
+                .get(0).get("content")).get("parts")).get(0).get("text").toString();
+
+        // Extract and print token counts
+        Map<String, Object> usageMetadata = (Map<String, Object>) responseBody.get("usageMetadata");
+        int promptTokenCount = (Integer) usageMetadata.get("promptTokenCount");
+        int candidatesTokenCount = (Integer) usageMetadata.get("candidatesTokenCount");
+        int totalTokenCount = (Integer) usageMetadata.get("totalTokenCount");
+
+        logger.info("Prompt Token Count: {}", promptTokenCount);
+        logger.info("Candidates Token Count: {}", candidatesTokenCount);
+        logger.info("Total Token Count: {}", totalTokenCount);
+
+        return ResponseEntity.ok(responseData);
     }
 
     private String prompt = """
