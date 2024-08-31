@@ -18,6 +18,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -44,7 +45,7 @@ public class AIController {
         this.objectMapper = objectMapper;
     }
 
-    @GetMapping("/resume/ai/generate")
+    @PostMapping("/resume/ai/generate")
     public ResponseEntity<?> generateAiResult(@RequestParam MultipartFile file)
             throws UncheckedIOException, IllegalStateException, IOException {
         try {
@@ -110,6 +111,9 @@ public class AIController {
 
         // Extract the text content directly from the Map response
         Map<String, Object> responseBody = response.getBody();
+
+        logger.info(responseBody.toString());
+
         String responseData = ((List<Map<String, Object>>) ((Map<String, Object>) ((List<Map<String, Object>>) responseBody
                 .get("candidates"))
                 .get(0).get("content")).get("parts")).get(0).get("text").toString();
